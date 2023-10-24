@@ -1,12 +1,13 @@
 # Build xrdp pulseaudio modules in builder container
 # See https://github.com/neutrinolabs/pulseaudio-module-xrdp/wiki/README
-ARG TAG=latest
+ARG TAG=jammy
 FROM ubuntu:$TAG as builder
 
 RUN sed -i -E 's/^# deb-src /deb-src /g' /etc/apt/sources.list \
     && apt-get update \
     && DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
         build-essential \
+        apt-src \
         dpkg-dev \
         git \
         libpulse-dev \
@@ -15,13 +16,14 @@ RUN sed -i -E 's/^# deb-src /deb-src /g' /etc/apt/sources.list \
     && apt-get source pulseaudio \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cd /pulseaudio-$(pulseaudio --version | awk '{print $2}') \
-    && ./configure
+RUN echo "PULSE_SRC: /pulseaudio-$(dpkg-query -W pulseaudio|awk '{print $2}'|cut -d- -f1|cut -d: -f2)"
+RUN cd /pulseaudio-$(dpkg-query -W pulseaudio|awk '{print $2}'|cut -d- -f1|cut -d: -f2) \
+    && meson build && ninja -C build
 
 RUN git clone https://github.com/neutrinolabs/pulseaudio-module-xrdp.git /pulseaudio-module-xrdp \
     && cd /pulseaudio-module-xrdp \
     && ./bootstrap \
-    && ./configure PULSE_DIR=/pulseaudio-$(pulseaudio --version | awk '{print $2}') \
+    && ./configure PULSE_DIR=/pulseaudio-$(dpkg-query -W pulseaudio|awk '{print $2}'|cut -d- -f1|cut -d: -f2) \
     && make \
     && make install
 
